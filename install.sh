@@ -2,10 +2,10 @@
 
 set -euxo pipefail
 
-: ${CONFIG_PATH:="$HOME/config"}
-: ${GCODE_PATH:="$HOME/gcode"}
+: ${CONFIG_PATH:="$HOME/printer_data/config"}
+: ${GCODE_PATH:="$HOME/printer_data/gcodes"}
 
-: ${KLIPPER_REPO:="https://github.com/KevinOConnor/klipper.git"}
+: ${KLIPPER_REPO:="https://github.com/Klipper3d/klipper.git"}
 : ${KLIPPER_PATH:="$HOME/klipper"}
 : ${KLIPPY_VENV_PATH:="$HOME/venv/klippy"}
 
@@ -25,21 +25,21 @@ fi
 # PRE
 ################################################################################
 
-sudo apk add git unzip python2 python2-dev libffi-dev make gcc g++ \
-ncurses-dev avrdude gcc-avr binutils-avr avr-libc \
+sudo apk add curl git unzip libffi-dev make build-base \
 python3 py3-virtualenv \
 python3-dev freetype-dev fribidi-dev harfbuzz-dev jpeg-dev lcms2-dev openjpeg-dev tcl-dev tiff-dev tk-dev zlib-dev \
 jq udev
 
-sudo rc-update del mdev sysinit
-sudo setup-udev
+sudo rc-update del mdev sysinit || true
+sudo setup-udev || true
+sudo mkdir -p /etc/init.d
 
 case $CLIENT in
   fluidd)
-    CLIENT_RELEASE_URL=`curl -s https://api.github.com/repos/cadriel/fluidd/releases | jq -r ".[0].assets[0].browser_download_url"`
+    CLIENT_RELEASE_URL=`curl -sL https://api.github.com/repos/fluidd-core/fluidd/releases | jq -r ".[0].assets[0].browser_download_url"`
     ;;
   mainsail)
-    CLIENT_RELEASE_URL=`curl -s https://api.github.com/repos/meteyou/mainsail/releases | jq -r ".[0].assets[0].browser_download_url"`
+    CLIENT_RELEASE_URL=`curl -sL https://api.github.com/repos/mainsail-crew/mainsail/releases | jq -r ".[0].assets[0].browser_download_url"`
     ;;
   *)
     echo "Unknown client $CLIENT (choose fluidd or mainsail)"
@@ -53,8 +53,8 @@ esac
 
 mkdir -p $CONFIG_PATH $GCODE_PATH
 
-test -d $KLIPPER_PATH || git clone $KLIPPER_REPO $KLIPPER_PATH
-test -d $KLIPPY_VENV_PATH || virtualenv -p python2 $KLIPPY_VENV_PATH
+test -d $KLIPPER_PATH || git clone --depth=1 $KLIPPER_REPO $KLIPPER_PATH
+test -d $KLIPPY_VENV_PATH || virtualenv -p python3 $KLIPPY_VENV_PATH
 $KLIPPY_VENV_PATH/bin/python -m pip install --upgrade pip
 $KLIPPY_VENV_PATH/bin/pip install -r $KLIPPER_PATH/scripts/klippy-requirements.txt
 
@@ -68,8 +68,8 @@ pidfile="/run/klipper.pid"
 EOF
 
 sudo chmod +x /etc/init.d/klipper
-sudo rc-update add klipper
-sudo service klipper start
+sudo rc-update add klipper || true
+sudo service klipper start || true
 
 ################################################################################
 # MOONRAKER
@@ -96,14 +96,14 @@ EOF
 
 sudo chmod a+x /etc/init.d/moonraker
 
-cat > $HOME/moonraker.conf <<EOF
+cat > $CONFIG_PATH/moonraker.conf <<EOF
 [server]
 host: 0.0.0.0
 config_path: $CONFIG_PATH
 
 [authorization]
 trusted_clients:
-  192.168.1.0/24
+  $(ipcalc -n $(ip a s | awk '/scope global/ && /inet / {print $2; exit}') | cut -d= -f2)/$(ipcalc -p $(ip a s | awk '/scope global/ && /inet / {print $2; exit}') | cut -d= -f2)
 
 [octoprint_compat]
 
@@ -115,8 +115,8 @@ repo: cadriel/fluidd
 path: ~/www
 EOF
 
-sudo rc-update add moonraker
-sudo service moonraker start
+sudo rc-update add moonraker || true
+sudo service moonraker start || true
 
 ################################################################################
 # MAINSAIL/FLUIDD
@@ -153,22 +153,22 @@ test -d $CLIENT_PATH && rm -rf $CLIENT_PATH
 mkdir -p $CLIENT_PATH
 (cd $CLIENT_PATH && wget -q -O $CLIENT.zip $CLIENT_RELEASE_URL && unzip $CLIENT.zip && rm $CLIENT.zip)
 
-sudo rc-update add caddy
-sudo service caddy start
+sudo rc-update add caddy || true
+service caddy start || true
 
 ################################################################################
 # AUTO DELETE OLD GCODE
 ################################################################################
 
-sudo tee /etc/periodic/15min/klipper <<END
-#!/bin/sh
-find $GCODE_PATH -mtime +5 -type f -delete
-END
+#sudo tee /etc/periodic/15min/klipper <<END
+##!/bin/sh
+#find $GCODE_PATH -mtime +5 -type f -delete
+#END
 
-sudo chmod a+x /etc/periodic/15min/klipper
+#sudo chmod a+x /etc/periodic/15min/klipper
 
-sudo service crond start
-sudo rc-update add crond
+#sudo service crond start || true
+#sudo rc-update add crond || true
 
 # UPDATE SCRIPT
 
@@ -182,10 +182,10 @@ set -exo pipefail
 
 case \$CLIENT in
   fluidd)
-    CLIENT_RELEASE_URL=`curl -s https://api.github.com/repos/cadriel/fluidd/releases | jq -r ".[0].assets[0].browser_download_url"`
+    CLIENT_RELEASE_URL=`curl -sL https://api.github.com/repos/fluidd-core/fluidd/releases | jq -r ".[0].assets[0].browser_download_url"`
     ;;
   mainsail)
-    CLIENT_RELEASE_URL=`curl -s https://api.github.com/repos/meteyou/mainsail/releases | jq -r ".[0].assets[0].browser_download_url"`
+    CLIENT_RELEASE_URL=`curl -sL https://api.github.com/repos/mainsail-crew/mainsail/releases | jq -r ".[0].assets[0].browser_download_url"`
     ;;
   *)
     echo "Unknown client \$CLIENT (choose fluidd or mainsail)"
