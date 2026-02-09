@@ -1,64 +1,122 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
-set -euxo pipefail
+# https://athemis.me/projects/klipper_guide
+
+set -euo pipefail
+
+select_from_list() {
+	[ -x "$(command -v fzf)" ] && { fzf "$@" <&0; return $?; } \
+	|| { local line i=0 REPLY
+	{ [ ! -t 0 ] && while IFS= read -r line; do [ -z "$line" ] && continue; echo "$i) $line" >/dev/tty; eval "local line$i=\"$line\""; i=$((i+1)); done; true; }
+	# { while IFS= read -r line; do [ -z "$line" ] && continue; echo "$i) $line" >/dev/tty; eval "local line$i=\"$line\""; i=$((i+1)); done <<- EOF
+	# $(for i in "$@"; do echo "$i"; done)
+	# EOF
+	# }
+	echo -n "Enter choice number: " >/dev/tty && read -r REPLY </dev/tty && eval "echo -n \"\${line$REPLY}\"" && echo >/dev/tty; }
+}
 
 : ${CONFIG_PATH:="$HOME/printer_data/config"}
 : ${GCODE_PATH:="$HOME/printer_data/gcodes"}
+: ${COMMS_PATH:="$HOME/printer_data/comms"}
+: ${LOGS_PATH:="$HOME/printer_data/logs"}
 
 : ${KLIPPER_REPO:="https://github.com/Klipper3d/klipper.git"}
 : ${KLIPPER_PATH:="$HOME/klipper"}
 : ${KLIPPY_VENV_PATH:="$HOME/venv/klippy"}
 
+: ${KIAUH_REPO:="https://github.com/dw-0/kiauh"}
+: ${KIAUH_PATH:="$HOME/kiauh"}
+
+: ${KAMP_REPO:="https://github.com/kyleisah/Klipper-Adaptive-Meshing-Purging"}
+: ${KAMP_PATH:="$HOME/KAMP"}
+
 : ${MOONRAKER_REPO:="https://github.com/Arksine/moonraker"}
 : ${MOONRAKER_PATH:="$HOME/moonraker"}
 : ${MOONRAKER_VENV_PATH:="$HOME/venv/moonraker"}
 
-: ${CLIENT:="fluidd"}
-: ${CLIENT_PATH:="$HOME/www"}
+: ${CLIENTS_DIR:="$HOME"}
+: ${CLIENT_PATH:="$CLIENTS_DIR/www"}
+
+: ${FLUIDD_REPO:="fluidd-core/fluidd"}
+: ${FLUIDD_PATH="$CLIENTS_DIR/fluidd"}
+
+: ${MAINSAIL_REPO:="mainsail-crew/mainsail"}
+: ${MAINSAIL_PATH="$CLIENTS_DIR/mainsail"}
+
+: ${LASERWEB4_REPO:="https://github.com/ssendev/LaserWeb4"}
+: ${LASERWEB4_PATH="$CLIENTS_DIR/laserweb4"}
+
+: ${E3V3SE_display_klipper_REPO:="https://github.com/jpcurti/E3V3SE_display_klipper"}
+: ${E3V3SE_display_klipper_PATH:="$HOME/e3v3se_display_klipper"}
+: ${E3V3SE_display_klipper_VENV_PATH:="$HOME/venv/e3v3se_display_klipper"}
+
+: ${KLIPPERSCREEN_REPO:="https://github.com/KlipperScreen/KlipperScreen"}
+: ${KLIPPERSCREEN_PATH:="$HOME/KlipperScreen"}
+: ${KLIPPERSCREEN_VENV_PATH:="$HOME/venv/KlipperScreen"}
+
+[ ! -e /sbin/openrc -o -e /run/openrc/softlevel ] && VIRTUAL=true || VIRTUAL=false
 
 if [ $(id -u) = 0 ]; then
-    echo "This script must not run as root"
-    exit 1
+	echo "This script must not run as root"
+	$VIRTUAL || exit 1
+	USER=root
 fi
+
+command -v sudo >>/dev/null || { command -v doas >>/dev/null && alias sudo=doas; } || alias sudo=
+
+$VIRTUAL && sudo apk add openrc wayvnc && { sudo mkdir -p /run/openrc; sudo touch /run/openrc/softlevel; } #&& sudo openrc boot
 
 ################################################################################
 # PRE
 ################################################################################
 
-sudo apk add curl git unzip libffi-dev make build-base \
-python3 py3-virtualenv \
-python3-dev freetype-dev fribidi-dev harfbuzz-dev jpeg-dev lcms2-dev openjpeg-dev tcl-dev tiff-dev tk-dev zlib-dev \
-jq udev
+[ -z "${INSTALL_E3V3SE_DISPLAY+x}" ] \
+	&& echo -n "Install E3V3SE_display_klipper? (y/N): " \
+	&& read -r INSTALL_E3V3SE_DISPLAY \
+	&& echo
 
-sudo rc-update del mdev sysinit || true
-sudo setup-udev || true
-sudo mkdir -p /etc/init.d
+[ -z "${UI_CHOICE+x}" ] \
+	&& echo "Select the UI to be installed:" \
+	&& UI_CHOICE="$(printf "KlipperScreen\nSway\nCage\nNone\n" | select_from_list)"
 
-case $CLIENT in
-  fluidd)
-    CLIENT_RELEASE_URL=`curl -sL https://api.github.com/repos/fluidd-core/fluidd/releases | jq -r ".[0].assets[0].browser_download_url"`
-    ;;
-  mainsail)
-    CLIENT_RELEASE_URL=`curl -sL https://api.github.com/repos/mainsail-crew/mainsail/releases | jq -r ".[0].assets[0].browser_download_url"`
-    ;;
-  *)
-    echo "Unknown client $CLIENT (choose fluidd or mainsail)"
-    exit 2
-    ;;
-esac
+sudo apk add sudo git python3 build-base python3-dev #libffi-dev #freetype-dev fribidi-dev harfbuzz-dev jpeg-dev lcms2-dev openjpeg-dev tcl-dev tiff-dev tk-dev zlib-dev
+#sudo sed -i 's/# %wheel ALL=(ALL:ALL) NOPASSWD: ALL/%wheel ALL=(ALL:ALL) NOPASSWD: ALL/' /etc/sudoers
+#sudo sh -c 'echo "permit nopass $USER as root cmd apk" >> /etc/doas.d/99-$USER-klipper.conf'
+#sudo sh -c 'echo "permit nopass $USER as root cmd poweroff" >> /etc/doas.d/99-$USER-klipper.conf'
+#sudo sh -c 'echo "permit nopass $USER as root cmd reboot" >> /etc/doas.d/99-$USER-klipper.conf'
+sudo sh -c 'echo "klipper ALL=(ALL) NOPASSWD: /sbin/apk" >> /etc/sudoers.d/99-$USER'
+sudo sh -c 'echo "klipper ALL=(ALL) NOPASSWD: /sbin/poweroff" >> /etc/sudoers.d/99-$USER'
+sudo sh -c 'echo "klipper ALL=(ALL) NOPASSWD: /sbin/reboot" >> /etc/sudoers.d/99-$USER'
+
+[ -e /etc/init.d ] || sudo mkdir -p /etc/init.d
+
+[ -e "$CONFIG_PATH" ] || mkdir -p "$CONFIG_PATH"
+[ -e "$GCODE_PATH" ] || ln -s /tmp "$GCODE_PATH"
+[ -e "$COMMS_PATH" ] || ln -s /tmp "$COMMS_PATH"
+[ -e "$LOGS_PATH" ] || ln -s /tmp "$LOGS_PATH"
 
 ################################################################################
 # KLIPPER
 ################################################################################
 
-mkdir -p $CONFIG_PATH $GCODE_PATH
+sudo apk add libffi-dev
 
 test -d $KLIPPER_PATH || git clone --depth=1 $KLIPPER_REPO $KLIPPER_PATH
-test -d $KLIPPY_VENV_PATH || virtualenv -p python3 $KLIPPY_VENV_PATH
+
+#echo 'choose printer config:'
+#sleep 1
+#selection="$(ls "$KLIPPER_PATH/config" | select_from_list)"
+#cp -i "$KLIPPER_PATH/config/$selection" "$CONFIG_PATH/printer.cfg"
+touch "$CONFIG_PATH/printer.cfg"
+
+cp -i "$KLIPPER_PATH/config/sample-pwm-tool.cfg" "$CONFIG_PATH"
+cp -i "$KLIPPER_PATH/config/sample-macros.cfg" "$CONFIG_PATH"
+
+test -d $KLIPPY_VENV_PATH || python3 -m venv $KLIPPY_VENV_PATH
 $KLIPPY_VENV_PATH/bin/python -m pip install --upgrade pip
 $KLIPPY_VENV_PATH/bin/pip install -r $KLIPPER_PATH/scripts/klippy-requirements.txt
 
-sudo tee /etc/init.d/klipper <<EOF
+sudo tee >/dev/null /etc/init.d/klipper <<EOF
 #!/sbin/openrc-run
 command="$KLIPPY_VENV_PATH/bin/python"
 command_args="$KLIPPER_PATH/klippy/klippy.py $CONFIG_PATH/printer.cfg -l /tmp/klippy.log -a /tmp/klippy_uds"
@@ -68,21 +126,36 @@ pidfile="/run/klipper.pid"
 EOF
 
 sudo chmod +x /etc/init.d/klipper
-sudo rc-update add klipper || true
-sudo service klipper start || true
+sudo rc-update add klipper sysinit || true
+sudo service klipper restart || true
+
+################################################################################
+# KIAUH
+################################################################################
+
+test -d "$KIAUH_PATH" || git clone --depth=1 "$KIAUH_REPO" "$KIAUH_PATH"
+find "$KIAUH_PATH/kiauh/extensions" -type f -name gcode_shell_command.py -exec ln -sf {} $KLIPPER_PATH/klippy/extras/ \;
+
+################################################################################
+# KAMP
+################################################################################
+
+test -d "$KAMP_PATH" || git clone --depth=1 $KAMP_REPO "$KAMP_PATH"
+ln -sf "$KAMP_PATH/Configuration" "$CONFIG_PATH/KAMP"
+cp -i "$KAMP_PATH/Configuration/KAMP_Settings.cfg" "$CONFIG_PATH/KAMP_Settings.cfg"
 
 ################################################################################
 # MOONRAKER
 ################################################################################
 
-sudo apk add libsodium curl-dev
+sudo apk add libsodium iproute2 jpeg-dev zlib-dev #curl-dev
 
-test -d $MOONRAKER_PATH || git clone $MOONRAKER_REPO $MOONRAKER_PATH
-test -d $MOONRAKER_VENV_PATH || virtualenv -p python3 $MOONRAKER_VENV_PATH
+test -d $MOONRAKER_PATH || git clone --depth=1 $MOONRAKER_REPO $MOONRAKER_PATH
+test -d $MOONRAKER_VENV_PATH || python3 -m venv $MOONRAKER_VENV_PATH
 $MOONRAKER_VENV_PATH/bin/python -m pip install --upgrade pip
 $MOONRAKER_VENV_PATH/bin/pip install -r $MOONRAKER_PATH/scripts/moonraker-requirements.txt
 
-sudo tee /etc/init.d/moonraker <<EOF
+sudo tee >/dev/null /etc/init.d/moonraker <<EOF
 #!/sbin/openrc-run
 command="$MOONRAKER_VENV_PATH/bin/python"
 command_args="$MOONRAKER_PATH/moonraker/moonraker.py"
@@ -90,127 +163,399 @@ command_background=true
 command_user="$USER"
 pidfile="/run/moonraker.pid"
 depend() {
-  before klipper
+	after klipper
 }
 EOF
 
 sudo chmod a+x /etc/init.d/moonraker
 
-cat > $CONFIG_PATH/moonraker.conf <<EOF
+tee >/dev/null $CONFIG_PATH/moonraker.conf <<EOF
+[machine]
+provider: none # since we are using alpine there is no systemd
+
 [server]
-host: 0.0.0.0
-config_path: $CONFIG_PATH
+host: 127.0.0.1
 
 [authorization]
 trusted_clients:
-  $(ipcalc -n $(ip a s | awk '/scope global/ && /inet / {print $2; exit}') | cut -d= -f2)/$(ipcalc -p $(ip a s | awk '/scope global/ && /inet / {print $2; exit}') | cut -d= -f2)
+	localhost
+	127.0.0.1        # Standard localhost address
+	127.0.0.0/8      # Local loopback range
+	169.254.0.0/16   # Link-local
+	FE80::/10        # IPv6 link-local
+	::1/128          # IPv6 localhost
+	$(ipcalc -n $(ip a s | awk '/scope global/ && /inet / {print $2; exit}') | cut -d= -f2)/$(ipcalc -p $(ip a s | awk '/scope global/ && /inet / {print $2; exit}') | cut -d= -f2)
 
 [octoprint_compat]
 
-[update_manager]
+[history]
 
-[update_manager client fluidd]
+[file_manager]
+enable_object_processing: True
+
+[update_manager]
+enable_system_updates: False # since we are using alpine there is no systemd
+
+[update_manager fluidd]
 type: web
-repo: cadriel/fluidd
-path: ~/www
+repo: $FLUIDD_REPO
+path: $FLUIDD_PATH
+
+[update_manager mainsail]
+type: web
+repo: $MAINSAIL_REPO
+path: $MAINSAIL_PATH
+
+[update_manager Laserweb4]
+type: git_repo
+origin: $LASERWEB4_REPO
+primary_branch: build
+path: $LASERWEB4_PATH
+is_system_service: False
+
+[update_manager Klipper-Adaptive-Meshing-Purging]
+type: git_repo
+origin: $KAMP_REPO
+primary_branch: main
+path: $KAMP_PATH
+managed_services: klipper
+
+[update_manager KlipperScreen]
+type: git_repo
+path: $KLIPPERSCREEN_PATH
+origin: $KLIPPERSCREEN_REPO
+virtualenv: $KLIPPERSCREEN_VENV_PATH
+requirements: scripts/KlipperScreen-requirements.txt
+system_dependencies: scripts/system-dependencies.json
+managed_services: KlipperScreen
 EOF
 
 sudo rc-update add moonraker || true
-sudo service moonraker start || true
+sudo service moonraker restart || true
 
 ################################################################################
-# MAINSAIL/FLUIDD
+# MAINSAIL/FLUIDD/LaserWeb4
 ################################################################################
 
-sudo apk add caddy curl
+sudo apk add caddy
 
-sudo tee /etc/caddy/Caddyfile <<EOF
+sudo tee >/dev/null /etc/caddy/Caddyfile <<EOF
 :80
 
 encode gzip
 
-root * $CLIENT_PATH
+#header {
+#	# Disable caching for HTML files so the UI switcher is instant
+#	Cache-Control "no-cache, no-store, must-revalidate"
+#	Pragma "no-cache"
+#	Expires "0"
+#}
+
+# Only disable cache for the main entry points
+@index_files path / /index.html
+header @index_files Cache-Control "no-cache, no-store, must-revalidate"
 
 @moonraker {
-  path /server/* /websocket /printer/* /access/* /api/* /machine/*
+	path /server/* /websocket /printer/* /access/* /api/* /machine/* /history/* /database/*
 }
 
-route @moonraker {
-  reverse_proxy localhost:7125
+handle @moonraker {
+	reverse_proxy localhost:7125
 }
 
-route /webcam {
-  reverse_proxy localhost:8081
+handle /webcam* {
+	reverse_proxy localhost:8081
 }
 
-route {
-  try_files {path} {path}/ /index.html
-  file_server
+# Cookie Setters (Triggered by GET parameters)
+@set_mainsail query ui=mainsail
+@set_fluidd   query ui=fluidd
+@set_laserweb query ui=laserweb
+@portal       query ui=
+
+# Use redir to load the page at once without needing a refresh to see the new page
+header @set_mainsail {
+	Set-Cookie "ui_mode=mainsail; Path=/; Max-Age=3600"
+	redir / /
+}
+header @set_fluidd   {
+	Set-Cookie "ui_mode=fluidd; Path=/; Max-Age=3600"
+	redir / /
+}
+header @set_laserweb {
+	Set-Cookie "ui_mode=laserweb; Path=/; Max-Age=3600"
+	redir / /
+}
+header @portal       {
+	Set-Cookie "ui_mode=; Path=/; Max-Age=0"
+	redir / /
+}
+
+# Root-Level UI Selection (Based on Cookie or Query)
+@use_mainsail header Cookie *ui_mode=mainsail*
+@use_fluidd   header Cookie *ui_mode=fluidd*
+@use_laserweb header Cookie *ui_mode=laserweb*
+
+# Mainsail
+handle @use_mainsail {
+	root * $MAINSAIL_PATH
+	file_server
+	try_files {path} {path}/ /index.html
+}
+
+# Fluidd
+handle @use_fluidd {
+	root * $FLUIDD_PATH
+	file_server
+	try_files {path} {path}/ /index.html
+}
+
+# LaserWeb
+handle @use_laserweb {
+	root * $LASERWEB4_PATH
+	file_server
+	try_files {path} {path}/ /index.html
+}
+
+# Redirect /fluidd to /fluidd/ (no trailing slash to trailing slash)
+redir /fluidd /fluidd/
+
+handle_path /fluidd/* {
+	root * $FLUIDD_PATH
+	file_server
+	try_files {path} {path}/ /index.html
+}
+
+# Redirect /laserweb to /laserweb/ (no trailing slash to trailing slash)
+redir /laserweb /laserweb/
+
+handle_path /laserweb* {
+	root * $LASERWEB4_PATH
+	file_server
+	try_files {path} {path}/ /index.html
+}
+
+# Default: Landing Page
+handle {
+	root * $CLIENT_PATH
+	file_server
+	try_files {path} {path}/ /index.html
 }
 EOF
 
-test -d $CLIENT_PATH && rm -rf $CLIENT_PATH
-mkdir -p $CLIENT_PATH
-(cd $CLIENT_PATH && wget -q -O $CLIENT.zip $CLIENT_RELEASE_URL && unzip $CLIENT.zip && rm $CLIENT.zip)
+# FLUIDD
+rmdir "$FLUIDD_PATH" 2>/dev/null || true
+mkdir -p "$FLUIDD_PATH" \
+	&& CLIENT_RELEASE_URL=`wget -qO - https://api.github.com/repos/$FLUIDD_REPO/releases | awk '/browser_download_url/{print $2; exit;}' | tr -d '"' || true` \
+	&& (cd "$FLUIDD_PATH" && wget -qO - $CLIENT_RELEASE_URL | unzip -q -)
+# MAINSAIL
+rmdir "$MAINSAIL_PATH" 2>/dev/null || true
+mkdir -p "$MAINSAIL_PATH" \
+	&& CLIENT_RELEASE_URL=`wget -qO - https://api.github.com/repos/$MAINSAIL_REPO/releases | awk '/browser_download_url/{print $2; exit;}' | tr -d '"' || true` \
+	&& (cd "$MAINSAIL_PATH" && wget -qO - $CLIENT_RELEASE_URL | unzip -q -)
+	echo $CLIENT_RELEASE_URL
+# LASERWEB4
+[ -e "$LASERWEB4_PATH" ] || git clone --depth=1 $LASERWEB4_REPO --branch build "$LASERWEB4_PATH"
+
+# Select default client (FLUIDD/MAINSAIL)
+# echo "Select Default Client:"
+# selection="$(ls -d $FLUIDD_PATH $MAINSAIL_PATH | select_from_list)"
+# [ -e "$selection" ] && ln -snf "$selection" "$CLIENT_PATH"
+
+[ -e ~/www ] || mkdir ~/www
+tee >/dev/null ~/www/index.html <<EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Printer UI Selection</title>
+	<style>
+		body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: #0f111a; color: white; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+		.container { text-align: center; width: 90%; max-width: 800px; padding: 20px; }
+
+		h1 { margin-bottom: 20px; font-weight: 300; letter-spacing: 2px; color: #00adb5; margin-top: 0; }
+
+		.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 20px; }
+		a { text-decoration: none; color: #eeeeee; border: 1px solid #393e46; padding: 12px; border-radius: 8px; transition: all 0.2s; background: #1a1d29; font-weight: bold; font-size: 0.8rem; }
+		a:hover { background: #00adb5; color: #121212; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>PRINTER UI SELECTION</h1>
+
+		<div class="grid">
+			<a href="/?ui=mainsail">MAINSAIL</a>
+			<a href="/fluidd/">FLUIDD</a>
+			<a href="/laserweb/">LASERWEB</a>
+		</div>
+	</div>
+</body>
+</html>
+EOF
 
 sudo rc-update add caddy || true
-service caddy start || true
+sudo service caddy restart || true
 
 ################################################################################
-# AUTO DELETE OLD GCODE
+# E3V3SE_display_klipper
 ################################################################################
 
-#sudo tee /etc/periodic/15min/klipper <<END
-##!/bin/sh
-#find $GCODE_PATH -mtime +5 -type f -delete
-#END
+if [ "$INSTALL_E3V3SE_DISPLAY" = 'y' -o "$INSTALL_E3V3SE_DISPLAY" = 'Y' ]; then
+sudo apk add make linux-headers swig py3-setuptools
+[ -e "$HOME/lgpio" ] || git clone --depth=1 https://github.com/joan2937/lg.git $HOME/lgpio
+cd $HOME/lgpio
+CFLAGS='-std=gnu11' make -j$(nproc)
+sudo make install
 
-#sudo chmod a+x /etc/periodic/15min/klipper
+[ -e "$E3V3SE_display_klipper_PATH" ] || git clone --depth=1 $E3V3SE_display_klipper_REPO "$E3V3SE_display_klipper_PATH"
+[ -e "$E3V3SE_display_klipper_VENV_PATH" ] || python3 -m venv "$E3V3SE_display_klipper_VENV_PATH"
+"$E3V3SE_display_klipper_VENV_PATH/bin/python" -m pip install --upgrade pip
+"$E3V3SE_display_klipper_VENV_PATH/bin/python" -m pip install rpi-lgpio
+sed -i 's/^python3-rpi.gpio$/#python3-rpi.gpio/' "$E3V3SE_display_klipper_PATH/src/e3v3se_display/requirements.txt"
+"$E3V3SE_display_klipper_VENV_PATH/bin/python" -m pip install -r "$E3V3SE_display_klipper_PATH/src/e3v3se_display/requirements.txt"
+cp -i "$E3V3SE_display_klipper_PATH/src/e3v3se_display/config-example.ini" "$CONFIG_PATH/e3v3se_display_klipper_config.ini"
 
-#sudo service crond start || true
-#sudo rc-update add crond || true
-
-# UPDATE SCRIPT
-
-cat > $HOME/update <<EOF
-#!/usr/bin/env bash
-
-set -exo pipefail
-
-: \${CLIENT:="$CLIENT"}
-: \${CLIENT_PATH:="$CLIENT_PATH"}
-
-case \$CLIENT in
-  fluidd)
-    CLIENT_RELEASE_URL=`curl -sL https://api.github.com/repos/fluidd-core/fluidd/releases | jq -r ".[0].assets[0].browser_download_url"`
-    ;;
-  mainsail)
-    CLIENT_RELEASE_URL=`curl -sL https://api.github.com/repos/mainsail-crew/mainsail/releases | jq -r ".[0].assets[0].browser_download_url"`
-    ;;
-  *)
-    echo "Unknown client \$CLIENT (choose fluidd or mainsail)"
-    exit 2
-    ;;
-esac
-
-# KLIPPER
-sudo service klipper stop
-(cd $KLIPPER_PATH && git fetch && git rebase origin/master)
-$KLIPPY_VENV_PATH/bin/pip install -r $KLIPPER_PATH/scripts/klippy-requirements.txt
-test -z "\$FLASH_DEVICE" || (cd $KLIPPER_PATH && make && make flash)
-sudo service klipper start
-
-# MOONRAKER
-sudo service moonraker stop
-(cd $MOONRAKER_PATH && git fetch && git rebase origin/master)
-$MOONRAKER_VENV_PATH/bin/pip install -r ~/moonraker/scripts/moonraker-requirements.txt
-sudo service moonraker start
-
-# CLIENT
-rm -Rf \$CLIENT_PATH
-mkdir -p \$CLIENT_PATH
-(cd \$CLIENT_PATH && wget -q -O \$CLIENT.zip \$CLIENT_RELEASE_URL && unzip \$CLIENT.zip && rm \$CLIENT.zip)
-sudo service caddy start
+sudo tee >/dev/null /etc/init.d/E3V3SE_display_klipper <<EOF
+#!/sbin/openrc-run
+command="$E3V3SE_display_klipper_VENV_PATH/bin/python"
+command_args="\"$E3V3SE_display_klipper_PATH/src/e3v3se_display/run.py\" --config \"$CONFIG_PATH/config.ini\""
+command_background=true
+command_user="$USER"
+pidfile="/run/E3V3SE_display_klipper.pid"
+output_log="/tmp/E3V3SE_display_klipper.log"
+error_log="/tmp/E3V3SE_display_klipper.err.log"
+supervisor="supervise-daemon"
+depend() {
+	after moonraker
+}
 EOF
 
-chmod a+x $HOME/update
+sudo chmod +x /etc/init.d/E3V3SE_display_klipper
+sudo rc-update add E3V3SE_display_klipper sysinit || true
+sudo service E3V3SE_display_klipper restart || true
+fi
+
+################################################################################
+# UI
+################################################################################
+
+if [ "$UI_CHOICE" = 'KlipperScreen' ]; then
+	# KlipperScreen + Wayland
+	sudo apk add xwayland seatd sway swayidle build-base gobject-introspection-dev sdbus-cpp-dev librsvg openjpeg gtk+3.0 $($VIRTUAL && echo wayvnc)
+
+	sudo addgroup $USER seat
+	sudo addgroup $USER video
+	sudo addgroup $USER input
+
+	sudo rc-update add seatd || true
+	sudo service seatd restart || true
+
+	[ -e "$KLIPPERSCREEN_PATH" ] || git clone --depth=1 $KLIPPERSCREEN_REPO "$KLIPPERSCREEN_PATH"
+	[ -e "$KLIPPERSCREEN_VENV_PATH" ] || python3 -m venv "$KLIPPERSCREEN_VENV_PATH"
+	"$KLIPPERSCREEN_VENV_PATH/bin/python" -m pip install --upgrade pip
+	# sed -i 's/^sdbus/#sdbus/' $KLIPPERSCREEN_PATH/scripts/KlipperScreen-requirements.txt
+	"$KLIPPERSCREEN_VENV_PATH/bin/python" -m pip install -r "$KLIPPERSCREEN_PATH/scripts/KlipperScreen-requirements.txt"
+
+	sudo tee >/dev/null /etc/init.d/KlipperScreen <<-EOF
+	#!/sbin/openrc-run
+	export XDG_RUNTIME_DIR=/tmp
+	$($VIRTUAL && echo export WLR_LIBINPUT_NO_DEVICES=1)
+	command="sway"
+	command_args="-c \$(printf "$($VIRTUAL && echo exec wayvnc -pr 0.0.0.0 5901)\ndefault_border none\nexec swayidle -w timeout 60 'swaymsg \"output * dpms off\"' resume 'swaymsg \"output * dpms on\"'\nexec $KLIPPERSCREEN_VENV_PATH/bin/python $KLIPPERSCREEN_PATH/screen.py || pkill sway && pkill sway\n" > /tmp/sway_ks; echo /tmp/sway_ks)"
+	command_background=true
+	command_user="$USER"
+	pidfile="/run/KlipperScreen.pid"
+	output_log="/tmp/KlipperScreen.log"
+	error_log="/tmp/KlipperScreen.err.log"
+	supervisor="supervise-daemon"
+	depend() {
+		need seatd
+		after seatd moonraker
+	}
+EOF
+
+	sudo chmod +x /etc/init.d/KlipperScreen
+	sudo rc-update add KlipperScreen || true
+	sudo service KlipperScreen restart || true
+elif [ "$UI_CHOICE" = 'Sway' ]; then
+	# Sway
+	sudo apk add seatd sway swayidle chromium $($VIRTUAL && echo wayvnc)
+	sudo setup-devd udev || true
+
+	sudo addgroup $USER seat
+	sudo addgroup $USER video
+	sudo addgroup $USER input
+
+	sudo rc-update add seatd || true
+	sudo service seatd restart || true
+
+	sudo tee >/dev/null /etc/init.d/KlipperScreen <<-EOF
+	#!/sbin/openrc-run
+	export XDG_RUNTIME_DIR=/tmp
+	$($VIRTUAL && echo export WLR_LIBINPUT_NO_DEVICES=1)
+	command="sway"
+	command_args="-c \$(printf "$($VIRTUAL && echo exec wayvnc -pr 0.0.0.0 5901)\ndefault_border none\nexec swayidle -w timeout 60 'swaymsg \"output * dpms off\"' resume 'swaymsg \"output * dpms on\"'\nexec chromium-browser $(test "$USER" = root && echo --no-sandbox) --no-first-run --disable-infobrs --kiosk 'http://localhost/?ui=' || pkill sway && pkill sway\n" > /tmp/sway_ks; echo /tmp/sway_ks)"
+	command_background=true
+	command_user="$USER"
+	pidfile="/run/KlipperScreen.pid"
+	output_log="/tmp/KlipperScreen.log"
+	error_log="/tmp/KlipperScreen.err.log"
+	supervisor="supervise-daemon"
+	depend() {
+		need seatd
+		after seatd moonraker
+	}
+EOF
+
+	sudo chmod +x /etc/init.d/KlipperScreen
+	sudo rc-update add KlipperScreen || true
+	sudo service KlipperScreen restart || true
+elif [ "$UI_CHOICE" = 'Cage' ]; then
+	# Cage
+	sudo apk add seatd cage wlopm swayidle chromium dotool $($VIRTUAL && echo wayvnc)
+	sudo setup-devd udev || true
+
+	sudo addgroup $USER seat
+	sudo addgroup $USER video
+	sudo addgroup $USER input
+
+	sudo rc-update add seatd || true
+	sudo service seatd restart || true
+
+	sudo sh -c 'echo uinput > /etc/modules-load.d/dotool.conf'
+
+	sudo tee >/dev/null /etc/init.d/KlipperScreen <<-EOF
+	#!/sbin/openrc-run
+	export XDG_RUNTIME_DIR=/tmp
+	$($VIRTUAL && echo export WLR_LIBINPUT_NO_DEVICES=1)
+	command="cage"
+	command_args="-ds sh -c \"$($VIRTUAL && echo wayvnc -pr 0.0.0.0 5901 '&')swayidle -w timeout 60 'wlopm --off \"*\"' resume 'wlopm --on \"*\"'&{ chromium-browser $(test "$USER" = root && echo --no-sandbox) --no-first-run --disable-infobrs --kiosk 'http://localhost/?ui='; pkill cage; } & sleep 1 && echo mouseto 1.0 1.0 | dotool\""
+	command_background=true
+	command_user="$USER"
+	pidfile="/run/KlipperScreen.pid"
+	output_log="/tmp/KlipperScreen.log"
+	error_log="/tmp/KlipperScreen.err.log"
+	supervisor="supervise-daemon"
+	depend() {
+		need seatd
+		after seatd moonraker
+	}
+EOF
+
+	sudo chmod +x /etc/init.d/KlipperScreen
+	sudo rc-update add KlipperScreen || true
+	sudo service KlipperScreen restart || true
+fi
+
+################################################################################
+# DONE
+################################################################################
+
+echo "Check $KLIPPER_PATH/config folder for printer config files and copy the one you want to use to $CONFIG_PATH/printer.cfg"
+echo "Add '[exclude_object]' '[include KAMP_Settings.cfg]' '[include sample-pwm-tool.cfg]' '[include sample-macros.cfg]' to your $CONFIG_PATH/printer.cfg"
+echo "Edit $CONFIG_PATH/sample-macros.cfg"
+echo "Edit $CONFIG_PATH/sample-pwm-tool.cfg to configure your laser"
+echo "Edit $CONFIG_PATH/KAMP_Settings.cfg and enable the feature that you want"
+echo "Make sure to go to your slicer and enable the “Label Objects” option"
