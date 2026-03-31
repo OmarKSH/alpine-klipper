@@ -79,6 +79,18 @@ $VIRTUAL && sudo apk add openrc wayvnc && { sudo mkdir -p /run/openrc; sudo touc
 	&& echo "Select the UI to be installed:" \
 	&& UI_CHOICE="$(printf "KlipperScreen\nSway\nCage\nNone\n" | select_from_list)"
 
+[ -z "${INSTALL_ARM_COMPILER+x}" ] \
+	&& echo -n "Install ARM GCC? (y/N): " \
+	&& read -r REPLY \
+	&& echo
+	&& { [ "$REPLY" = 'y' -o "$REPLY" = 'Y' ] && sudo apk add make gcc-arm-none-eabi newlib-arm-none-eabi; }
+
+[ -z "${INSTALL_AVR_COMPILER+x}" ] \
+	&& echo -n "Install AVR GCC? (y/N): " \
+	&& read -r REPLY \
+	&& echo
+	&& { [ "$REPLY" = 'y' -o "$REPLY" = 'Y' ] && sudo apk add make gcc-avr avr-libc; }
+
 sudo apk add sudo git python3 build-base python3-dev #libffi-dev #freetype-dev fribidi-dev harfbuzz-dev jpeg-dev lcms2-dev openjpeg-dev tcl-dev tiff-dev tk-dev zlib-dev
 #sudo sed -i 's/# %wheel ALL=(ALL:ALL) NOPASSWD: ALL/%wheel ALL=(ALL:ALL) NOPASSWD: ALL/' /etc/sudoers
 #sudo sh -c 'echo "permit nopass $USER as root cmd apk" >> /etc/doas.d/99-$USER-klipper.conf'
