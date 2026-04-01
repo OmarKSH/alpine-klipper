@@ -46,9 +46,9 @@ select_from_list() {
 : ${LASERWEB4_REPO:="https://github.com/ssendev/LaserWeb4"}
 : ${LASERWEB4_PATH="$CLIENTS_DIR/laserweb4"}
 
-: ${E3V3SE_display_klipper_REPO:="https://github.com/jpcurti/E3V3SE_display_klipper"}
-: ${E3V3SE_display_klipper_PATH:="$HOME/e3v3se_display_klipper"}
-: ${E3V3SE_display_klipper_VENV_PATH:="$HOME/venv/e3v3se_display_klipper"}
+# : ${E3V3SE_display_klipper_REPO:="https://github.com/jpcurti/E3V3SE_display_klipper"}
+# : ${E3V3SE_display_klipper_PATH:="$HOME/e3v3se_display_klipper"}
+# : ${E3V3SE_display_klipper_VENV_PATH:="$HOME/venv/e3v3se_display_klipper"}
 
 : ${KLIPPERSCREEN_REPO:="https://github.com/KlipperScreen/KlipperScreen"}
 : ${KLIPPERSCREEN_PATH:="$HOME/KlipperScreen"}
@@ -70,10 +70,10 @@ $VIRTUAL && sudo apk add openrc wayvnc && { sudo mkdir -p /run/openrc; sudo touc
 # PRE
 ################################################################################
 
-[ -z "${INSTALL_E3V3SE_DISPLAY+x}" ] \
-	&& echo -n "Install E3V3SE_display_klipper? (y/N): " \
-	&& read -r INSTALL_E3V3SE_DISPLAY \
-	&& echo
+# [ -z "${INSTALL_E3V3SE_DISPLAY+x}" ] \
+# 	&& echo -n "Install E3V3SE_display_klipper? (y/N): " \
+# 	&& read -r INSTALL_E3V3SE_DISPLAY \
+# 	&& echo
 
 [ -z "${UI_CHOICE+x}" ] \
 	&& echo "Select the UI to be installed:" \
@@ -415,40 +415,40 @@ sudo service caddy restart || true
 # E3V3SE_display_klipper
 ################################################################################
 
-if [ "$INSTALL_E3V3SE_DISPLAY" = 'y' -o "$INSTALL_E3V3SE_DISPLAY" = 'Y' ]; then
-sudo apk add make linux-headers swig py3-setuptools
-[ -e "$HOME/lgpio" ] || git clone --depth=1 https://github.com/joan2937/lg.git $HOME/lgpio
-cd $HOME/lgpio
-CFLAGS='-std=gnu11' make -j$(nproc)
-sudo make install
+# if [ "$INSTALL_E3V3SE_DISPLAY" = 'y' -o "$INSTALL_E3V3SE_DISPLAY" = 'Y' ]; then
+# sudo apk add make linux-headers swig py3-setuptools
+# [ -e "$HOME/lgpio" ] || git clone --depth=1 https://github.com/joan2937/lg.git $HOME/lgpio
+# cd $HOME/lgpio
+# CFLAGS='-std=gnu11' make -j$(nproc)
+# sudo make install
 
-[ -e "$E3V3SE_display_klipper_PATH" ] || git clone --depth=1 $E3V3SE_display_klipper_REPO "$E3V3SE_display_klipper_PATH"
-[ -e "$E3V3SE_display_klipper_VENV_PATH" ] || python3 -m venv "$E3V3SE_display_klipper_VENV_PATH"
-"$E3V3SE_display_klipper_VENV_PATH/bin/python" -m pip install --upgrade pip
-"$E3V3SE_display_klipper_VENV_PATH/bin/python" -m pip install rpi-lgpio
-sed -i 's/^python3-rpi.gpio$/#python3-rpi.gpio/' "$E3V3SE_display_klipper_PATH/src/e3v3se_display/requirements.txt"
-"$E3V3SE_display_klipper_VENV_PATH/bin/python" -m pip install -r "$E3V3SE_display_klipper_PATH/src/e3v3se_display/requirements.txt"
-cp -i "$E3V3SE_display_klipper_PATH/src/e3v3se_display/config-example.ini" "$CONFIG_PATH/e3v3se_display_klipper_config.ini"
+# [ -e "$E3V3SE_display_klipper_PATH" ] || git clone --depth=1 $E3V3SE_display_klipper_REPO "$E3V3SE_display_klipper_PATH"
+# [ -e "$E3V3SE_display_klipper_VENV_PATH" ] || python3 -m venv "$E3V3SE_display_klipper_VENV_PATH"
+# "$E3V3SE_display_klipper_VENV_PATH/bin/python" -m pip install --upgrade pip
+# "$E3V3SE_display_klipper_VENV_PATH/bin/python" -m pip install rpi-lgpio
+# sed -i 's/^python3-rpi.gpio$/#python3-rpi.gpio/' "$E3V3SE_display_klipper_PATH/src/e3v3se_display/requirements.txt"
+# "$E3V3SE_display_klipper_VENV_PATH/bin/python" -m pip install -r "$E3V3SE_display_klipper_PATH/src/e3v3se_display/requirements.txt"
+# cp -i "$E3V3SE_display_klipper_PATH/src/e3v3se_display/config-example.ini" "$CONFIG_PATH/e3v3se_display_klipper_config.ini"
 
-sudo tee >/dev/null /etc/init.d/E3V3SE_display_klipper <<EOF
-#!/sbin/openrc-run
-command="$E3V3SE_display_klipper_VENV_PATH/bin/python"
-command_args="\"$E3V3SE_display_klipper_PATH/src/e3v3se_display/run.py\" --config \"$CONFIG_PATH/config.ini\""
-command_background=true
-command_user="$USER"
-pidfile="/run/E3V3SE_display_klipper.pid"
-output_log="/tmp/E3V3SE_display_klipper.log"
-error_log="/tmp/E3V3SE_display_klipper.err.log"
-supervisor="supervise-daemon"
-depend() {
-	after moonraker
-}
-EOF
+# sudo tee >/dev/null /etc/init.d/E3V3SE_display_klipper <<EOF
+# #!/sbin/openrc-run
+# command="$E3V3SE_display_klipper_VENV_PATH/bin/python"
+# command_args="\"$E3V3SE_display_klipper_PATH/src/e3v3se_display/run.py\" --config \"$CONFIG_PATH/config.ini\""
+# command_background=true
+# command_user="$USER"
+# pidfile="/run/E3V3SE_display_klipper.pid"
+# output_log="/tmp/E3V3SE_display_klipper.log"
+# error_log="/tmp/E3V3SE_display_klipper.err.log"
+# supervisor="supervise-daemon"
+# depend() {
+# 	after moonraker
+# }
+# EOF
 
-sudo chmod +x /etc/init.d/E3V3SE_display_klipper
-sudo rc-update add E3V3SE_display_klipper sysinit || true
-sudo service E3V3SE_display_klipper restart || true
-fi
+# sudo chmod +x /etc/init.d/E3V3SE_display_klipper
+# sudo rc-update add E3V3SE_display_klipper sysinit || true
+# sudo service E3V3SE_display_klipper restart || true
+# fi
 
 ################################################################################
 # UI
