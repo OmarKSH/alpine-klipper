@@ -121,8 +121,8 @@ test -d $KLIPPER_PATH || git clone --depth=1 $KLIPPER_REPO $KLIPPER_PATH
 #cp -i "$KLIPPER_PATH/config/$selection" "$CONFIG_PATH/printer.cfg"
 touch "$CONFIG_PATH/printer.cfg"
 
-cp -i "$KLIPPER_PATH/config/sample-pwm-tool.cfg" "$CONFIG_PATH"
-cp -i "$KLIPPER_PATH/config/sample-macros.cfg" "$CONFIG_PATH"
+ln -s "$KLIPPER_PATH/config/sample-pwm-tool.cfg" "$CONFIG_PATH"
+ln -s "$KLIPPER_PATH/config/sample-macros.cfg" "$CONFIG_PATH"
 
 test -d $KLIPPY_VENV_PATH || python3 -m venv $KLIPPY_VENV_PATH
 $KLIPPY_VENV_PATH/bin/python -m pip install --upgrade pip
