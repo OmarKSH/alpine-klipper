@@ -114,6 +114,71 @@ sudo sh -c 'echo "klipper ALL=(ALL) NOPASSWD: /sbin/reboot" >> /etc/sudoers.d/99
 [ -e "$COMMS_PATH" ] || ln -s /tmp "$COMMS_PATH"
 [ -e "$LOGS_PATH" ] || ln -s /tmp "$LOGS_PATH"
 
+# Automount USB storage devices
+sudo apk add mount dosfstools exfat-utils btrfs-progs
+
+[ -d /etc/udev/rules.d ] && printf 'SUBSYSTEM=="block", KERNEL=="sd[a-z][0-9]", ACTION=="add", RUN+="/usr/local/bin/automount-usb-handler %%k"\nSUBSYSTEM=="block", KERNEL=="sd[a-z][0-9]", ACTION=="remove", RUN+="/usr/local/bin/automount-usb-handler %%k"\n' | sudo tee /etc/udev/rules.d/99-usb-automount.rules > /dev/null
+
+[ -e /etc/mdev.conf ] \
+	&& MDEV_AUTOMOUNT_CMD='sd[a-z][0-9] 0:0 660 @/usr/local/bin/automount-usb-handler' \
+	&& ! grep -F "$MDEV_AUTOMOUNT_CMD" /etc/mdev.conf >/dev/null \
+	&& printf '\n#USB automunt\n$MDEV_AUTOMOUNT_CMD\n' | sudo tee -a /etc/mdev.conf >/dev/null
+
+sudo addgroup -S storage 2>/dev/null
+sudo addgroup $USER storage
+
+sudo tee >/dev/null "$HOME/automount-usb-handler" <<'EOF'
+#!/bin/sh
+
+# Base directory
+BASE_DIR='/tmp/usb'
+# Determine device name (e.g., sda1)
+DEVNAME="${MDEV:-$1}"
+# Specific mount point for this partition
+MOUNT_POINT="$BASE_DIR/$DEVNAME"
+
+STORAGE_GID=$(getent group storage | cut -d: -f3)
+STORAGE_GID=${STORAGE_GID:-0}
+
+case "$ACTION" in
+	add)
+		[ ! -d "$MOUNT_POINT" ] && mkdir -p "$MOUNT_POINT" && chmod 775 "$MOUNT_POINT"
+
+		DEVNAME="${MDEV:-$1}"
+		DEVICE="/dev/$DEVNAME"
+
+		if echo "$DEVNAME" | grep -q '[0-9]$'; then
+			# 1. Try mounting with GID/umask (Works for FAT32, exFAT, NTFS)
+			if ! mount -t auto -o gid=$STORAGE_GID,uid=0,umask=002,dmask=002,nosuid,nodev "$DEVICE" "$MOUNT_POINT" 2>/dev/null; then
+				# 2. If that fails, it's likely a native Linux FS (ext4, btrfs)
+				# We mount it normally without the fake permission arguments
+				mount -t auto -o nosuid,nodev "$DEVICE" "$MOUNT_POINT"
+
+				# 3. Since it's a native FS, we must manually fix the permissions 
+				# on the mount point so the storage group can write to it
+				chgrp storage "$MOUNT_POINT"
+				chmod 775 "$MOUNT_POINT"
+			fi
+		fi
+		;;
+	remove)
+		# Lazy unmount the specific folder
+		umount -l "$MOUNT_POINT"
+		# Remove the subfolder once empty
+		rmdir "$MOUNT_POINT" 2>/dev/null
+
+		# Clean up base dir if no more USBs are plugged in
+		rmdir "$BASE_DIR" 2>/dev/null
+		;;
+esac
+EOF
+
+chmod ug+x "$HOME/automount-usb-handler"
+
+sudo ln -sf "$HOME/automount-usb-handler" /usr/local/bin/automount-usb-handler
+
+sed -i "s#BASE_DIR='/tmp/usb'#BASE_DIR='$GCODE_PATH'#" "$HOME/automount-usb-handler"
+
 ################################################################################
 # KLIPPER
 ################################################################################
