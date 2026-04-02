@@ -260,6 +260,13 @@ enable_object_processing: True
 [update_manager]
 enable_system_updates: False # since we are using alpine there is no systemd
 
+[update_manager KIAUH]
+type: git_repo
+origin: $KIAUH_REPO
+primary_branch: master
+path: $KIAUH_PATH
+managed_services: klipper
+
 [update_manager fluidd]
 type: web
 repo: $FLUIDD_REPO
