@@ -100,6 +100,13 @@ sudo sh -c 'echo "klipper ALL=(ALL) NOPASSWD: /sbin/apk" >> /etc/sudoers.d/99-$U
 sudo sh -c 'echo "klipper ALL=(ALL) NOPASSWD: /sbin/poweroff" >> /etc/sudoers.d/99-$USER'
 sudo sh -c 'echo "klipper ALL=(ALL) NOPASSWD: /sbin/reboot" >> /etc/sudoers.d/99-$USER'
 
+[ -d /etc/udev/rules.d ] && echo 'SUBSYSTEM=="backlight", RUN+="/bin/chgrp video /sys/class/backlight/%k/brightness /sys/class/backlight/%k/bl_power", RUN+="/bin/chmod 664 /sys/class/backlight/%k/brightness /sys/class/backlight/%k/bl_power"' | sudo tee /etc/udev/rules.d/backlight-permissions.rules >/dev/null
+
+[ -e /etc/mdev.conf ] \
+	&& MDEV_BACKLIGHT_CMD='backlight[0-9]* 0:video 664 @/bin/chgrp video /sys/class/backlight/$MDEV/brightness /sys/class/backlight/$MDEV/bl_power && /bin/chmod 664 /sys/class/backlight/$MDEV/brightness /sys/class/backlight/$MDEV/bl_power' \
+	&& ! grep -F "$MDEV_BACKLIGHT_CMD" /etc/mdev.conf >/dev/null \
+	&& printf "\n#Backlight permissions for klipper\n$MDEV_BACKLIGHT_CMD\n" | sudo tee -a /etc/mdev.conf >/dev/null
+
 [ -e /etc/init.d ] || sudo mkdir -p /etc/init.d
 
 [ -e "$CONFIG_PATH" ] || mkdir -p "$CONFIG_PATH"
@@ -123,6 +130,50 @@ touch "$CONFIG_PATH/printer.cfg"
 
 ln -s "$KLIPPER_PATH/config/sample-pwm-tool.cfg" "$CONFIG_PATH"
 ln -s "$KLIPPER_PATH/config/sample-macros.cfg" "$CONFIG_PATH"
+
+sudo tee >/dev/null "$CONFIG_PATH/backlight_control.cfg" <<'EOF'
+[gcode_shell_command set_display_brightness]
+command: sh -c "find -L /sys/class/backlight -maxdepth 2 -type f -name brightness -exec sh -c 'echo $2 > $1' _ {} $0 \;"
+timeout: 2.
+verbose: True
+
+[gcode_shell_command set_display_backlight_power]
+command: sh -c "find -L /sys/class/backlight -maxdepth 2 -type f -name bl_power -exec sh -c 'echo $2 > $1' _ {} $0 \;"
+timeout: 2.
+verbose: True
+
+[gcode_macro SCREEN_BRIGHTNESS]
+gcode:
+	{% set BRIGHTNESS = params.BRIGHTNESS|default(127)|int %}
+	RUN_SHELL_COMMAND CMD=set_display_brightness PARAMS={BRIGHTNESS}
+
+[gcode_macro SCREEN_BRIGHTNESS_20]
+gcode:
+	RUN_SHELL_COMMAND CMD=set_display_brightness PARAMS=51
+
+[gcode_macro SCREEN_BRIGHTNESS_40]
+gcode:
+	RUN_SHELL_COMMAND CMD=set_display_brightness PARAMS=102
+
+[gcode_macro SCREEN_BRIGHTNESS_80]
+gcode:
+	RUN_SHELL_COMMAND CMD=set_display_brightness PARAMS=204
+
+[gcode_macro SCREEN_BACKLIGHT_POWER]
+gcode:
+	{% set POWER = params.OFF|default(0)|int %}
+	RUN_SHELL_COMMAND CMD=set_display_backlight_power PARAMS={POWER}
+
+[gcode_macro SCREEN_OFF]
+gcode:
+	SCREEN_BRIGHTNESS BRIGHTNESS=0
+	SCREEN_BACKLIGHT_POWER OFF=1
+
+[gcode_macro SCREEN_ON]
+gcode:
+	SCREEN_BRIGHTNESS BRIGHTNESS=255
+	SCREEN_BACKLIGHT_POWER OFF=0
+EOF
 
 test -d $KLIPPY_VENV_PATH || python3 -m venv $KLIPPY_VENV_PATH
 $KLIPPY_VENV_PATH/bin/python -m pip install --upgrade pip
