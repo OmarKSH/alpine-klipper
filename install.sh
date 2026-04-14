@@ -91,6 +91,12 @@ $VIRTUAL && sudo apk add openrc wayvnc && { sudo mkdir -p /run/openrc; sudo touc
 	&& echo
 	&& { [ "$REPLY" = 'y' -o "$REPLY" = 'Y' ] && sudo apk add make gcc-avr avr-libc; }
 
+[ -z "${CAMERA_STREAMING+x}" ] \
+	&& echo -n "Install Camera Streaming Packages? (y/N): " \
+	&& read -r REPLY \
+	&& echo
+	&& { [ "$REPLY" = 'y' -o "$REPLY" = 'Y' ] && CAMERA_STREAMING=1; }
+
 sudo apk add sudo git python3 build-base python3-dev #libffi-dev #freetype-dev fribidi-dev harfbuzz-dev jpeg-dev lcms2-dev openjpeg-dev tcl-dev tiff-dev tk-dev zlib-dev
 #sudo sed -i 's/# %wheel ALL=(ALL:ALL) NOPASSWD: ALL/%wheel ALL=(ALL:ALL) NOPASSWD: ALL/' /etc/sudoers
 #sudo sh -c 'echo "permit nopass $USER as root cmd apk" >> /etc/doas.d/99-$USER-klipper.conf'
@@ -370,6 +376,35 @@ sudo rc-update add moonraker || true
 sudo service moonraker restart || true
 
 ################################################################################
+# Camera Streaming
+################################################################################
+
+if [ "$CAMERA_STREAMING" = '1' ]; then
+	sudo apk add go2rtc
+
+	echo 'SUBSYSTEM=="dma_heap", GROUP="video", MODE="0660"' | sudo tee /etc/udev/rules.d/99-rpi-camera.rules >/dev/null
+	sudo udevadm control --reload-rules && sudo udevadm trigger
+
+	printf '\ndma_heap/.* root:video 0660\n' | sudo tee -a /etc/mdev.conf >/dev/null
+	sudo mdev -s
+
+	sudo apk -X http://dl-cdn.alpinelinux.org/alpine/edge/main -X http://dl-cdn.alpinelinux.org/alpine/edge/community -X http://dl-cdn.alpinelinux.org/alpine/edge/testing add rpicam-apps
+
+	[ -e /etc/go2rtc/go2rtc.yaml -a ! -e /etc/go2rtc/go2rtc.yaml.bak ] && sudo mv /etc/go2rtc/go2rtc.yaml /etc/go2rtc/go2rtc.yaml.bak
+
+	[ -e /etc/go2rtc/go2rtc.yaml ] || sudo tee <<'EOF' > /etc/go2rtc/go2rtc.yaml
+	streams:
+		printer: exec:rpicam-vid -t 0 --width 640 --height 480 --framerate 15 --codec h264 --inline --bitrate 800000 --intra 30 --nopreview -o -
+
+	api:
+		listen: "127.0.0.1:1984"
+EOF
+
+	sudo rc-update add go2rtc
+	sudo service go2rtc restart
+fi
+
+################################################################################
 # MAINSAIL/FLUIDD/LaserWeb4
 ################################################################################
 
@@ -402,8 +437,10 @@ handle @moonraker {
 	reverse_proxy localhost:7125
 }
 
-handle /webcam* {
-	reverse_proxy localhost:8081
+redir /webcam /webcam/
+
+handle_path /webcam/* {
+	reverse_proxy localhost:1984
 }
 
 # Cookie Setters (Triggered by GET parameters)
