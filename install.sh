@@ -376,6 +376,9 @@ sudo service moonraker restart || true
 sudo apk add caddy
 
 sudo tee >/dev/null /etc/caddy/Caddyfile <<EOF
+# Caddy's configuration file
+# see: https://caddyserver.com/docs/caddyfile
+
 :80
 
 encode gzip
@@ -410,20 +413,20 @@ handle /webcam* {
 @portal       query ui=
 
 # Use redir to load the page at once without needing a refresh to see the new page
-header @set_mainsail {
-	Set-Cookie "ui_mode=mainsail; Path=/; Max-Age=3600"
+handle @set_mainsail {
+	header Set-Cookie "ui_mode=mainsail; Path=/; Max-Age=3600"
 	redir / /
 }
-header @set_fluidd   {
-	Set-Cookie "ui_mode=fluidd; Path=/; Max-Age=3600"
+handle @set_fluidd {
+	header Set-Cookie "ui_mode=fluidd; Path=/; Max-Age=3600"
 	redir / /
 }
-header @set_laserweb {
-	Set-Cookie "ui_mode=laserweb; Path=/; Max-Age=3600"
+handle @set_laserweb {
+	header Set-Cookie "ui_mode=laserweb; Path=/; Max-Age=3600"
 	redir / /
 }
-header @portal       {
-	Set-Cookie "ui_mode=; Path=/; Max-Age=0"
+handle @portal {
+	header Set-Cookie "ui_mode=; Path=/; Max-Age=0"
 	redir / /
 }
 
