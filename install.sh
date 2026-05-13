@@ -265,6 +265,63 @@ sudo rc-update add klipper sysinit || true
 sudo service klipper restart || true
 
 ################################################################################
+# KLIPPER MCU
+################################################################################
+
+cat <<EOF > "$CONFIG_PATH/klipper_host_mcu.cfg"
+[mcu host]
+serial: /tmp/klipper_host_mcu
+EOF
+
+make -C "$KLIPPER_PATH" distclean
+
+[ -f "$KLIPPER_PATH/.config" ] && mv -i "$KLIPPER_PATH/.config" "$KLIPPER_PATH/.config.mcu"
+cat <<EOF > "$KLIPPER_PATH/.config"
+CONFIG_LOW_LEVEL_OPTIONS=y
+CONFIG_MACH_LINUX=y
+CONFIG_BOARD_DIRECTORY="linux"
+CONFIG_MCU="linux"
+EOF
+
+make olddefconfig
+sudo make -j$(nproc) -C "$KLIPPER_PATH" flash
+make -C "$KLIPPER_PATH" distclean
+
+[ -f "$KLIPPER_PATH/.config.mcu" ] && mv "$KLIPPER_PATH/.config.mcu" "$KLIPPER_PATH/.config"
+
+sudo tee >/dev/null /etc/init.d/klipper_host_mcu <<EOF
+#!/sbin/openrc-run
+command="/usr/local/bin/klipper_mcu"
+command_args="-I /tmp/klipper_host_mcu"
+command_background=true
+command_user="$USER"
+pidfile="/run/klipper_host_mcu.pid"
+output_log="/tmp/klipper_host_mcu.log"
+error_log="/tmp/klipper_host_mcu.err.log"
+depend() {
+    need localmount
+}
+EOF
+
+[ -d /etc/udev/rules.d ] \
+	&& printf 'SUBSYSTEM=="gpio", GROUP="dialout", MODE="0660"\nSUBSYSTEM=="gpiochip*", GROUP="dialout", MODE="0660"' | sudo tee /etc/udev/rules.d/99-gpio.rules >/dev/null \
+	&& echo 'SUBSYSTEM=="spidev", GROUP="dialout", MODE="0660"' | sudo tee /etc/udev/rules.d/99-spi.rules >/dev/null \
+	&& sudo udevadm control --reload-rules && sudo udevadm trigger
+
+[ -e /etc/mdev.conf ] \
+	&& GPIO='gpiochip[0-9] 0:dialout 660' \
+	&& ! grep -F "$GPIO" /etc/mdev.conf >/dev/null \
+	&& printf "\n#GPIO permissions for klipper\n$GPIO\n" | sudo tee -a /etc/mdev.conf >/dev/null \
+	&& MDEV_SPI_CMD='spidev[0-9]\.[0-9] 0:dialout 660' \
+	&& ! grep -F "$MDEV_SPI_CMD" /etc/mdev.conf >/dev/null \
+	&& printf "\n#SPI permissions for klipper\n$MDEV_SPI_CMD\n" | sudo tee -a /etc/mdev.conf >/dev/null \
+	&& sudo mdev -s
+
+sudo chmod +x /etc/init.d/klipper_host_mcu
+sudo rc-update add klipper_host_mcu sysinit || true
+sudo service klipper_host_mcu restart || true
+
+################################################################################
 # KIAUH
 ################################################################################
 
