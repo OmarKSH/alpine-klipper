@@ -132,7 +132,7 @@ sudo apk add mount dosfstools exfat-utils btrfs-progs
 sudo addgroup -S storage 2>/dev/null || true
 sudo addgroup $USER storage
 
-sudo tee >/dev/null "$HOME/automount-usb-handler" <<'EOF'
+cat <<'EOF' > "$HOME/automount-usb-handler"
 #!/bin/sh
 
 # Base directory
@@ -201,7 +201,7 @@ touch "$CONFIG_PATH/printer.cfg"
 ln -s "$KLIPPER_PATH/config/sample-pwm-tool.cfg" "$CONFIG_PATH" || true
 ln -s "$KLIPPER_PATH/config/sample-macros.cfg" "$CONFIG_PATH" || true
 
-sudo tee >/dev/null "$CONFIG_PATH/backlight_control.cfg" <<'EOF'
+cat <<'EOF' > "$CONFIG_PATH/.backlight_control"
 [gcode_shell_command set_display_brightness]
 command: sh -c "find -L /sys/class/backlight -maxdepth 2 -type f -name brightness -exec sh -c 'echo $2 > $1' _ {} $0 \;"
 timeout: 2.
@@ -303,7 +303,7 @@ EOF
 
 sudo chmod a+x /etc/init.d/moonraker
 
-tee >/dev/null $CONFIG_PATH/moonraker.conf <<EOF
+cat <<'EOF' > $CONFIG_PATH/moonraker.conf
 [machine]
 provider: none # since we are using alpine there is no systemd
 
