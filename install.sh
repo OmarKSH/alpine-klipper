@@ -654,7 +654,6 @@ sudo service caddy restart || true
 # #!/sbin/openrc-run
 # command="$E3V3SE_display_klipper_VENV_PATH/bin/python"
 # command_args="\"$E3V3SE_display_klipper_PATH/src/e3v3se_display/run.py\" --config \"$CONFIG_PATH/config.ini\""
-# command_background=true
 # command_user="$USER"
 # pidfile="/run/\${RC_SVCNAME}.pid"
 # output_log="/tmp/\${RC_SVCNAME}.log"
@@ -697,7 +696,6 @@ if [ "$UI_CHOICE" = 'KlipperScreen' ]; then
 	$($VIRTUAL && echo export WLR_LIBINPUT_NO_DEVICES=1)
 	command="sway"
 	command_args="-c \$(printf "$($VIRTUAL && echo exec wayvnc -pr 0.0.0.0 5901)\ndefault_border none\nexec swayidle -w timeout 60 'swaymsg \"output * dpms off\"' resume 'swaymsg \"output * dpms on\"'\nexec $KLIPPERSCREEN_VENV_PATH/bin/python $KLIPPERSCREEN_PATH/screen.py || pkill sway && pkill sway\n" > /tmp/sway_ks; echo /tmp/sway_ks)"
-	command_background=true
 	command_user="$USER"
 	pidfile="/run/\${RC_SVCNAME}.pid"
 	output_log="/tmp/\${RC_SVCNAME}.log"
@@ -730,7 +728,6 @@ elif [ "$UI_CHOICE" = 'Sway' ]; then
 	$($VIRTUAL && echo export WLR_LIBINPUT_NO_DEVICES=1)
 	command="sway"
 	command_args="-c \$(printf "$($VIRTUAL && echo exec wayvnc -pr 0.0.0.0 5901)\ndefault_border none\nexec swayidle -w timeout 60 'swaymsg \"output * dpms off\"' resume 'swaymsg \"output * dpms on\"'\nexec chromium-browser $(test "$USER" = root && echo --no-sandbox) --no-first-run --disable-infobrs --kiosk 'http://localhost/?ui=' || pkill sway && pkill sway\n" > /tmp/sway_ks; echo /tmp/sway_ks)"
-	command_background=true
 	command_user="$USER"
 	pidfile="/run/\${RC_SVCNAME}.pid"
 	output_log="/tmp/\${RC_SVCNAME}.log"
@@ -765,7 +762,6 @@ elif [ "$UI_CHOICE" = 'Cage' ]; then
 	$($VIRTUAL && echo export WLR_LIBINPUT_NO_DEVICES=1)
 	command="cage"
 	command_args="-ds sh -c \"$($VIRTUAL && echo wayvnc -pr 0.0.0.0 5901 '&')swayidle -w timeout 60 'wlopm --off \"*\"' resume 'wlopm --on \"*\"'&{ chromium-browser $(test "$USER" = root && echo --no-sandbox) --no-first-run --disable-infobrs --kiosk 'http://localhost/?ui='; pkill cage; } & sleep 1 && echo mouseto 1.0 1.0 | dotool\""
-	command_background=true
 	command_user="$USER"
 	pidfile="/run/\${RC_SVCNAME}.pid"
 	output_log="/tmp/\${RC_SVCNAME}.log"
