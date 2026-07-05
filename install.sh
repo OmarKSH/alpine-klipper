@@ -257,7 +257,7 @@ command="$KLIPPY_VENV_PATH/bin/python"
 command_args="$KLIPPER_PATH/klippy/klippy.py $CONFIG_PATH/printer.cfg -l /tmp/klippy.log -a /tmp/klippy_uds"
 command_background=true
 command_user="$USER"
-pidfile="/run/klipper.pid"
+pidfile="/run/\${RC_SVCNAME}.pid"
 EOF
 
 sudo chmod +x /etc/init.d/klipper
@@ -295,9 +295,9 @@ command="/usr/local/bin/klipper_mcu"
 command_args="-I /tmp/klipper_host_mcu"
 command_background=true
 command_user="$USER"
-pidfile="/run/klipper_host_mcu.pid"
-output_log="/tmp/klipper_host_mcu.log"
-error_log="/tmp/klipper_host_mcu.err.log"
+pidfile="/run/\${RC_SVCNAME}.pid"
+output_log="/tmp/\${RC_SVCNAME}.log"
+error_log="/tmp/\${RC_SVCNAME}.err.log"
 depend() {
     need localmount
 }
@@ -656,9 +656,9 @@ sudo service caddy restart || true
 # command_args="\"$E3V3SE_display_klipper_PATH/src/e3v3se_display/run.py\" --config \"$CONFIG_PATH/config.ini\""
 # command_background=true
 # command_user="$USER"
-# pidfile="/run/E3V3SE_display_klipper.pid"
-# output_log="/tmp/E3V3SE_display_klipper.log"
-# error_log="/tmp/E3V3SE_display_klipper.err.log"
+# pidfile="/run/\${RC_SVCNAME}.pid"
+# output_log="/tmp/\${RC_SVCNAME}.log"
+# error_log="/tmp/\${RC_SVCNAME}.err.log"
 # supervisor="supervise-daemon"
 # depend() {
 # 	after moonraker
@@ -699,9 +699,9 @@ if [ "$UI_CHOICE" = 'KlipperScreen' ]; then
 	command_args="-c \$(printf "$($VIRTUAL && echo exec wayvnc -pr 0.0.0.0 5901)\ndefault_border none\nexec swayidle -w timeout 60 'swaymsg \"output * dpms off\"' resume 'swaymsg \"output * dpms on\"'\nexec $KLIPPERSCREEN_VENV_PATH/bin/python $KLIPPERSCREEN_PATH/screen.py || pkill sway && pkill sway\n" > /tmp/sway_ks; echo /tmp/sway_ks)"
 	command_background=true
 	command_user="$USER"
-	pidfile="/run/KlipperScreen.pid"
-	output_log="/tmp/KlipperScreen.log"
-	error_log="/tmp/KlipperScreen.err.log"
+	pidfile="/run/\${RC_SVCNAME}.pid"
+	output_log="/tmp/\${RC_SVCNAME}.log"
+	error_log="/tmp/\${RC_SVCNAME}.err.log"
 	supervisor="supervise-daemon"
 	depend() {
 		need seatd
@@ -732,9 +732,9 @@ elif [ "$UI_CHOICE" = 'Sway' ]; then
 	command_args="-c \$(printf "$($VIRTUAL && echo exec wayvnc -pr 0.0.0.0 5901)\ndefault_border none\nexec swayidle -w timeout 60 'swaymsg \"output * dpms off\"' resume 'swaymsg \"output * dpms on\"'\nexec chromium-browser $(test "$USER" = root && echo --no-sandbox) --no-first-run --disable-infobrs --kiosk 'http://localhost/?ui=' || pkill sway && pkill sway\n" > /tmp/sway_ks; echo /tmp/sway_ks)"
 	command_background=true
 	command_user="$USER"
-	pidfile="/run/KlipperScreen.pid"
-	output_log="/tmp/KlipperScreen.log"
-	error_log="/tmp/KlipperScreen.err.log"
+	pidfile="/run/\${RC_SVCNAME}.pid"
+	output_log="/tmp/\${RC_SVCNAME}.log"
+	error_log="/tmp/\${RC_SVCNAME}.err.log"
 	supervisor="supervise-daemon"
 	depend() {
 		need seatd
@@ -767,9 +767,9 @@ elif [ "$UI_CHOICE" = 'Cage' ]; then
 	command_args="-ds sh -c \"$($VIRTUAL && echo wayvnc -pr 0.0.0.0 5901 '&')swayidle -w timeout 60 'wlopm --off \"*\"' resume 'wlopm --on \"*\"'&{ chromium-browser $(test "$USER" = root && echo --no-sandbox) --no-first-run --disable-infobrs --kiosk 'http://localhost/?ui='; pkill cage; } & sleep 1 && echo mouseto 1.0 1.0 | dotool\""
 	command_background=true
 	command_user="$USER"
-	pidfile="/run/KlipperScreen.pid"
-	output_log="/tmp/KlipperScreen.log"
-	error_log="/tmp/KlipperScreen.err.log"
+	pidfile="/run/\${RC_SVCNAME}.pid"
+	output_log="/tmp/\${RC_SVCNAME}.log"
+	error_log="/tmp/\${RC_SVCNAME}.err.log"
 	supervisor="supervise-daemon"
 	depend() {
 		need seatd
